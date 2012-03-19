@@ -47,6 +47,11 @@ mkdir -p ${WORK_DIR}/movielens
 echo "Converting ratings..."
 cat $1 |sed -e s/::/,/g| cut -d, -f1,2,3 > ${WORK_DIR}/movielens/ratings.csv
 
+if [ "$MAHOUT_LOCAL" = "" ]; then
+  hadoop fs -copyFromLocal ${WORK_DIR}/movielens/ratings.csv ${WORK_DIR}/movielens/ratings.csv
+  echo "Copied the ratings file to HDFS ..."
+fi
+
 # create a 90% percent training set and a 10% probe set
 $MAHOUT splitDataset --input ${WORK_DIR}/movielens/ratings.csv --output ${WORK_DIR}/dataset \
     --trainingPercentage 0.9 --probePercentage 0.1 --tempDir ${WORK_DIR}/dataset/tmp
@@ -66,12 +71,23 @@ $MAHOUT recommendfactorized --input ${WORK_DIR}/als/out/userRatings/ --output ${
 
 # print the error
 echo -e "\nRMSE is:\n"
-cat ${WORK_DIR}/als/rmse/rmse.txt
+if [ "$MAHOUT_LOCAL" = "" ]; then
+  hadoop fs -cat ${WORK_DIR}/als/rmse/rmse.txt
+else
+  cat ${WORK_DIR}/als/rmse/rmse.txt
+fi
 echo -e "\n"
 
 echo -e "\nSample recommendations:\n"
-shuf ${WORK_DIR}/recommendations/part-m-00000 |head
+if [ "$MAHOUT_LOCAL" = "" ]; then
+  hadoop fs -cat ${WORK_DIR}/recommendations/part-m-00000 |head
+else
+  cat ${WORK_DIR}/recommendations/part-m-00000 |head
+fi
 echo -e "\n\n"
 
 echo "removing work directory"
 rm -rf ${WORK_DIR}
+if [ "$MAHOUT_LOCAL" = "" ]; then
+  hadoop fs -rmr ${WORK_DIR}
+fi
